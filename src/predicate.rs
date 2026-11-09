@@ -8,13 +8,14 @@ pub(crate) struct Scope {
     pub remaining: usize,
     pub relations: Option<RelationVerifier>,
 }
+impl Scope {
+    pub(crate) fn new(relations: Option<RelationVerifier>) -> Self {
+        Self { depth: 0, remaining: 8, relations }
+    }
+}
 impl Default for Scope {
     fn default() -> Self {
-        Self {
-            depth: 0,
-            remaining: 8,
-            relations: None,
-        }
+        Self::new(None)
     }
 }
 pub fn literal(value: Value) -> Value {

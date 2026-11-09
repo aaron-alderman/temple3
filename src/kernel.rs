@@ -269,6 +269,12 @@ pub fn evaluate_proof_transition(
 ) -> Result<Transition> {
     evaluate_scoped(head, proposal, Some(proof), &mut Scope::default())
 }
+pub fn evaluate_proof_transition_with_relations(
+    head: &Value, proposal: &Value, proof: &Value,
+    relations: crate::federation::RelationVerifier,
+) -> Result<Transition> {
+    evaluate_scoped(head, proposal, Some(proof), &mut Scope::new(Some(relations)))
+}
 pub(crate) fn evaluate_scoped(
     t: &Value,
     p: &Value,

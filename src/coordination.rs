@@ -1,5 +1,5 @@
 use crate::{
-    Result, array, canonical::identify, decimal, err, identity, kernel, predicate::Scope, require,
+    Result, array, canonical::identify, decimal, err, federation::RelationVerifier, identity, kernel, predicate::Scope, require,
     shape, string, without,
 };
 use serde_json::{Value, json};
@@ -69,6 +69,11 @@ pub fn initial(genesis: &Value, expected_temple: &Value) -> Result<Value> {
 pub fn candidate(state: &Value, proposal: &Value) -> Result<Value> {
     candidate_scoped(state, proposal, &mut Scope::default())
 }
+pub fn candidate_with_relations(
+    state: &Value, proposal: &Value, relations: RelationVerifier,
+) -> Result<Value> {
+    candidate_scoped(state, proposal, &mut Scope::new(Some(relations)))
+}
 pub(crate) fn candidate_scoped(
     state: &Value,
     proposal: &Value,
@@ -117,10 +122,25 @@ pub fn check_vote(profile: &Value, decision: &Value, vote: &Value) -> Result<Str
 pub fn verify_certificate(state: &Value, certificate: &Value) -> Result<Value> {
     certificate_scoped(state, certificate, &mut Scope::default())
 }
+pub fn verify_certificate_with_relations(
+    state: &Value, certificate: &Value, relations: RelationVerifier,
+) -> Result<Value> {
+    certificate_scoped(state, certificate, &mut Scope::new(Some(relations)))
+}
 /// Assemble already-issued votes. Insufficient or duplicate votes are errors.
 /// Issuing votes requires a separate durable height-lock service.
 pub fn assemble_certificate(state: &Value, proposal: &Value, votes: &[Value]) -> Result<Value> {
-    let result = candidate(state, proposal)?;
+    assemble_with(state, proposal, votes, None)
+}
+pub fn assemble_certificate_with_relations(
+    state: &Value, proposal: &Value, votes: &[Value], relations: RelationVerifier,
+) -> Result<Value> {
+    assemble_with(state, proposal, votes, Some(relations))
+}
+pub(crate) fn assemble_with(
+    state: &Value, proposal: &Value, votes: &[Value], relations: Option<RelationVerifier>,
+) -> Result<Value> {
+    let result = candidate_scoped(state, proposal, &mut Scope::new(relations))?;
     let mut ordered = votes.to_vec();
     for vote in &ordered {
         check_vote(&state["profile"], &result["decision"], vote)?;
@@ -135,7 +155,7 @@ pub fn assemble_certificate(state: &Value, proposal: &Value, votes: &[Value]) ->
         "certificateId",
         json!({"kind":"temple3.finality-certificate/v0.1","decision":result["decision"],"proposal":proposal,"witness":result["witness"],"votes":ordered,"finalityId":identify("finality",&result["decision"])?}),
     )?;
-    verify_certificate(state, &certificate)?;
+    certificate_scoped(state, &certificate, &mut Scope::new(relations))?;
     Ok(certificate)
 }
 pub(crate) fn certificate_scoped(state: &Value, c: &Value, scope: &mut Scope) -> Result<Value> {
@@ -184,6 +204,11 @@ pub(crate) fn certificate_scoped(state: &Value, c: &Value, scope: &mut Scope) ->
 pub fn advance(state: &Value, certificate: &Value) -> Result<Value> {
     advance_scoped(state, certificate, &mut Scope::default())
 }
+pub fn advance_with_relations(
+    state: &Value, certificate: &Value, relations: RelationVerifier,
+) -> Result<Value> {
+    advance_scoped(state, certificate, &mut Scope::new(Some(relations)))
+}
 pub(crate) fn advance_scoped(state: &Value, c: &Value, scope: &mut Scope) -> Result<Value> {
     require(state["halted"] != true, "halted-coordination")?;
     let result = certificate_scoped(state, c, scope)?;
@@ -223,8 +248,8 @@ pub fn basis(state: &Value, finality: &Value) -> Result<Value> {
     }
     Ok(result)
 }
-fn historical(state: &Value, c: &Value) -> Result<()> {
-    verify_certificate(&basis(state, &c["decision"]["parentFinalityId"])?, c)?;
+fn historical(state: &Value, c: &Value, relations: Option<RelationVerifier>) -> Result<()> {
+    certificate_scoped(&basis(state, &c["decision"]["parentFinalityId"])?, c, &mut Scope::new(relations))?;
     Ok(())
 }
 pub fn replay(records: &Value, anchor: &Value) -> Result<Value> {
@@ -235,6 +260,16 @@ pub fn replay(records: &Value, anchor: &Value) -> Result<Value> {
 }
 /// Reconstructs the complete replica state, including durable height votes.
 pub fn replay_state(records: &Value, anchor: &Value) -> Result<Value> {
+    replay_state_with(records, anchor, None)
+}
+pub fn replay_state_with_relations(
+    records: &Value, anchor: &Value, relations: RelationVerifier,
+) -> Result<Value> {
+    replay_state_with(records, anchor, Some(relations))
+}
+pub(crate) fn replay_state_with(
+    records: &Value, anchor: &Value, relations: Option<RelationVerifier>,
+) -> Result<Value> {
     let tip = identity::verify_records(records, anchor)?;
     let records = array(records, "invalid-journal")?;
     let mut state = initial(
@@ -245,11 +280,13 @@ pub fn replay_state(records: &Value, anchor: &Value) -> Result<Value> {
     state["equivocations"] = json!([]);
     state["certificates"] = json!([]);
     state["conflicts"] = json!([]);
-    apply_entries(state, &records[1..], tip)
+    apply_entries_with(state, &records[1..], tip, relations)
 }
 /// Internal continuation of an already validated prefix. The caller verifies
 /// the complete on-disk record chain and exact prefix before using this path.
-pub(crate) fn apply_entries(mut state: Value, records: &[Value], tip: Value) -> Result<Value> {
+pub(crate) fn apply_entries_with(
+    mut state: Value, records: &[Value], tip: Value, relations: Option<RelationVerifier>,
+) -> Result<Value> {
     let mut votes = array(&state["votes"], "invalid-state")?.clone();
     let mut equivocations = array(&state["equivocations"], "invalid-state")?.clone();
     let mut certificates = array(&state["certificates"], "invalid-state")?.clone();
@@ -260,9 +297,10 @@ pub(crate) fn apply_entries(mut state: Value, records: &[Value], tip: Value) -> 
             Some("coordination-vote") => {
                 shape(e, "kind proposal vote")?;
                 let v = &e["vote"];
-                let result = candidate(
+                let result = candidate_scoped(
                     &basis(&state, &v["payload"]["parentFinalityId"])?,
                     &e["proposal"],
+                    &mut Scope::new(relations),
                 )?;
                 check_vote(&state["profile"], &result["decision"], v)?;
                 require(
@@ -284,7 +322,7 @@ pub(crate) fn apply_entries(mut state: Value, records: &[Value], tip: Value) -> 
             Some("coordination-finality") => {
                 shape(e, "kind certificate")?;
                 let c = &e["certificate"];
-                historical(&state, c)?;
+                historical(&state, c, relations)?;
                 let existing = array(&state["history"], "invalid-state")?
                     .iter()
                     .find(|h| h["temple"]["sequence"] == c["decision"]["height"]);
@@ -305,7 +343,7 @@ pub(crate) fn apply_entries(mut state: Value, records: &[Value], tip: Value) -> 
                         c["decision"]["parentFinalityId"] == state["finalityId"],
                         "unknown-finality-parent",
                     )?;
-                    state = advance(&state, c)?;
+                    state = advance_scoped(&state, c, &mut Scope::new(relations))?;
                 }
                 certificates.push(c.clone());
             }
@@ -317,8 +355,8 @@ pub(crate) fn apply_entries(mut state: Value, records: &[Value], tip: Value) -> 
                     "invalid-finality-conflict",
                 )?;
                 let (a, b) = (&cs[0], &cs[1]);
-                historical(&state, a)?;
-                historical(&state, b)?;
+                historical(&state, a, relations)?;
+                historical(&state, b, relations)?;
                 require(
                     a["decision"]["height"] == b["decision"]["height"]
                         && a["decision"]["parentFinalityId"] == b["decision"]["parentFinalityId"]

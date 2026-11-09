@@ -64,3 +64,10 @@ public inputs and evidence after Temple3 checks the statement and envelope.
 It returns `None` for unrecognized relations. Use the same deterministic,
 bounded implementation for admission and replay. Temple3 retains its built-in
 verification rules and proof budget.
+
+The default resolver covers protocol proofs for foreign finality, federation
+readiness, private openings and state disclosure. Application proof relations
+require an explicit adapter. The same resolver can be supplied for compact
+transitions, coordination candidates, certificates, and journal replay.
+`Replica::create_with_relations` and `Replica::open_with_relations` keep
+the resolver fixed for the lifetime of a replica, including cached replay.

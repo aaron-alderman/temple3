@@ -211,37 +211,6 @@ pub(crate) fn verify_scoped(stmt: &Value, proof: &Value, scope: &mut Scope) -> R
         let i = &stmt["publicInputs"];
         let e = &proof["evidence"];
         match stmt["relation"].as_str() {
-            Some("basis-decision-command-v1") => Ok(crate::basis_decision::verify(i, e)),
-            Some("basis-consequence-command-v1") => Ok(crate::basis_consequence::verify(i, e)),
-            Some("typed-composition-command-v1") => Ok(crate::typed_composition::verify(i, e)),
-            Some("representative-composition-command-v1") => {
-                Ok(crate::typed_composition::verify_representative(i, e))
-            }
-            Some("durable-effect-command-v1") => Ok(crate::durable_effect::verify(i, e)),
-            Some("inventory-command-v1") => Ok(crate::inventory::verify(i, e)),
-            Some("preserved-transition-command-v1") => {
-                Ok(crate::preserved_transition::verify(i, e))
-            }
-            Some("claim-import-application-v1") => {
-                Ok(crate::claim_import_application::verify(i, e))
-            }
-            Some("voluntary-expression-command-v1") => {
-                Ok(crate::voluntary_expression::verify(i, e))
-            }
-            Some("claim-readiness-command-v1") => Ok(crate::claim_readiness::verify(i, e)),
-            Some("claim-readiness-local-command-v1") => {
-                Ok(crate::claim_readiness_local::verify_bound(i, e))
-            }
-            Some("claim-readiness-local-command-v2") => {
-                Ok(crate::claim_readiness_local::verify_compact(i, e))
-            }
-            Some("claim-lifecycle-local-command-v1") => {
-                Ok(crate::claim_lifecycle_local::verify_compact(i, e))
-            }
-            Some("disclosure-grant-command-v1") => Ok(crate::disclosure_grants::verify(i, e)),
-            Some("authorized-testimony-command-v1") => {
-                Ok(crate::authorized_testimony::command_valid(i, e))
-            }
             Some("foreign-finality") => {
                 shape(i, "templeId finalityId stateRoot witnessId")?;
                 let result = foreign_scoped(e, &i["templeId"], &mut child)?;

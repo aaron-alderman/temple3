@@ -1,5 +1,5 @@
 use crate::{
-    Result, array, coordination as c, err, identity,
+    Result, array, coordination as c, err, federation::RelationVerifier, identity, predicate::Scope,
     journal::{FileJournal, LockedJournal},
     require, without,
 };
@@ -11,6 +11,7 @@ pub struct Replica {
     expected: Value,
     voter: String,
     seed: [u8; 32],
+    relations: Option<RelationVerifier>,
     validated: RefCell<Option<(Vec<Value>, Value)>>,
 }
 impl Replica {
@@ -21,11 +22,32 @@ impl Replica {
         seed: [u8; 32],
         expected_tip: Option<&Value>,
     ) -> Result<Self> {
+        Self::open_with(journal, expected, voter, seed, expected_tip, None)
+    }
+    pub fn open_with_relations(
+        journal: FileJournal,
+        expected: Value,
+        voter: String,
+        seed: [u8; 32],
+        expected_tip: Option<&Value>,
+        relations: RelationVerifier,
+    ) -> Result<Self> {
+        Self::open_with(journal, expected, voter, seed, expected_tip, Some(relations))
+    }
+    fn open_with(
+        journal: FileJournal,
+        expected: Value,
+        voter: String,
+        seed: [u8; 32],
+        expected_tip: Option<&Value>,
+        relations: Option<RelationVerifier>,
+    ) -> Result<Self> {
         let replica = Self {
             journal,
             expected,
             voter,
             seed,
+            relations,
             validated: RefCell::new(None),
         };
         let s = replica.state(expected_tip)?;
@@ -39,11 +61,32 @@ impl Replica {
         voter: String,
         seed: [u8; 32],
     ) -> Result<Self> {
+        Self::create_with(journal, genesis, expected, voter, seed, None)
+    }
+    pub fn create_with_relations(
+        journal: FileJournal,
+        genesis: &Value,
+        expected: Value,
+        voter: String,
+        seed: [u8; 32],
+        relations: RelationVerifier,
+    ) -> Result<Self> {
+        Self::create_with(journal, genesis, expected, voter, seed, Some(relations))
+    }
+    fn create_with(
+        journal: FileJournal,
+        genesis: &Value,
+        expected: Value,
+        voter: String,
+        seed: [u8; 32],
+        relations: Option<RelationVerifier>,
+    ) -> Result<Self> {
         let replica = Self {
             journal,
             expected,
             voter,
             seed,
+            relations,
             validated: RefCell::new(None),
         };
         let s = c::initial(genesis, &replica.expected)?;
@@ -75,9 +118,9 @@ impl Replica {
         let next = if let Some((prefix, state)) =
             cached.as_ref().filter(|(p, _)| records.starts_with(p))
         {
-            c::apply_entries(state.clone(), &records[prefix.len()..], actual_tip)?
+            c::apply_entries_with(state.clone(), &records[prefix.len()..], actual_tip, self.relations)?
         } else {
-            c::replay_state(&json!(records), &json!({"expectedTempleId":self.expected}))?
+            c::replay_state_with(&json!(records), &json!({"expectedTempleId":self.expected}), self.relations)?
         };
         drop(cached);
         *self.validated.borrow_mut() = Some((records, next.clone()));
@@ -92,10 +135,11 @@ impl Replica {
     fn append(&self, j: &mut LockedJournal<'_>, s: &Value, entry: &Value) -> Result<Value> {
         let mut records = j.read()?;
         let record = identity::record_for(entry, records.len(), &s["tip"])?;
-        let next = c::apply_entries(
+        let next = c::apply_entries_with(
             s.clone(),
             std::slice::from_ref(&record),
             record["recordId"].clone(),
+            self.relations,
         )?;
         j.append(entry, &s["tip"])?;
         records.push(record);
@@ -120,7 +164,7 @@ impl Replica {
                     .any(|e| e["voter"] == self.voter),
                 "voter-equivocated",
             )?;
-            let candidate = c::candidate(&s, proposal)?;
+            let candidate = c::candidate_scoped(&s, proposal, &mut Scope::new(self.relations))?;
             if let Some(old) = array(&s["votes"], "invalid-state")?.iter().find(|e| {
                 e["vote"]["payload"]["voter"] == self.voter
                     && e["vote"]["payload"]["height"] == candidate["decision"]["height"]
@@ -142,9 +186,10 @@ impl Replica {
     pub fn receive_vote(&self, proposal: &Value, vote: &Value) -> Result<Value> {
         self.journal.transaction(|j| {
             let s = self.locked_state(j)?;
-            let candidate = c::candidate(
+            let candidate = c::candidate_scoped(
                 &c::basis(&s, &vote["payload"]["parentFinalityId"])?,
                 proposal,
+                &mut Scope::new(self.relations),
             )?;
             c::check_vote(&s["profile"], &candidate["decision"], vote)?;
             if array(&s["votes"], "invalid-state")?
@@ -164,7 +209,7 @@ impl Replica {
     pub fn receive_certificate(&self, certificate: &Value) -> Result<Value> {
         self.journal.transaction(|j|{
         let s=self.locked_state(j)?;
-        c::verify_certificate(&c::basis(&s,&certificate["decision"]["parentFinalityId"])?,certificate)?;
+        c::certificate_scoped(&c::basis(&s,&certificate["decision"]["parentFinalityId"])?,certificate,&mut Scope::new(self.relations))?;
         if array(&s["history"],"invalid-state")?.iter().any(|h|h["finalityId"]==certificate["finalityId"]){return Ok(json!({"status":"replay"}));}
         let after=self.append(j,&s,&json!({"kind":"coordination-finality","certificate":certificate}))?;
         Ok(json!({"status":if after["halted"]==true{"halted"}else{"finalized"},"certificate":certificate}))
@@ -190,7 +235,7 @@ impl Replica {
             if eligible.is_empty(){continue;}
             let basis=c::basis(&s,&head["finalityId"])?;
             let mut certs=vec![];
-            for (p,votes) in groups.values().filter(|(_,v)|v.len()>=q){certs.push(c::assemble_certificate(&basis,p,votes)?);}
+            for (p,votes) in groups.values().filter(|(_,v)|v.len()>=q){certs.push(c::assemble_with(&basis,p,votes,self.relations)?);}
             if certs.len()>1 {
                 self.append(j,&s,&json!({"kind":"coordination-conflict","certificates":&certs[..2]}))?;
                 return Ok(json!({"status":"halted","reason":"conflicting-certificates"}));
