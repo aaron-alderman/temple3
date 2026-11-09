@@ -2,8 +2,6 @@
 //! admission; signatures alone never authorize a transition.
 pub mod af6_cross_language_artifact_recognition_v01;
 pub mod af6_synthetic_execution_transcript_bridge_v01;
-pub mod authorized_testimony;
-pub mod authorized_testimony_profile;
 pub mod basis_consequence;
 pub mod basis_consequence_profile;
 pub mod basis_decision;
@@ -14,8 +12,6 @@ pub mod coordination;
 pub mod decision_request;
 pub mod disclosure_grants;
 pub mod disclosure_grants_profile;
-pub mod durable_effect;
-pub mod durable_effect_profile;
 pub mod federation;
 pub mod generation_publication;
 pub mod identity;
