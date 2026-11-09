@@ -6,7 +6,7 @@ use std::{
     process::{Command, ExitCode},
 };
 use temple3::{
-    canonical, coordination, federation, identity, kernel, migration, vectors,
+    canonical, coordination, federation, identity, kernel, vectors,
 };
 
 fn main() -> ExitCode {
@@ -21,22 +21,29 @@ fn main() -> ExitCode {
 fn run() -> Result<ExitCode, Box<dyn std::error::Error>> {
     let args: Vec<_> = env::args().skip(1).collect();
     let command = args.first().map(String::as_str).unwrap_or("help");
-    if matches!(command, "runtime-events" | "runtime-journal") {
+    let research_cli = match command {
+        "runtime-events" | "runtime-journal" => Some("TEMPLE3_SHADOW_CLI"),
+        "migrate" => Some("TEMPLE3_MIGRATION_CLI"),
+        _ => None,
+    };
+    if let Some(variable) = research_cli {
         if args.len() != 1 {
             return Err("JSON commands accept input on stdin only".into());
         }
-        return run_shadow(command);
+        return run_research(variable, &[command]);
     }
     if command == "help" || command == "--help" {
         println!(
-            "Temple3 native Rust laboratory\n\n  temple3 verify CORPUS_ROOT [--legacy]\n  temple3 <command> < input.json\n\nCommands: canonical, decode, identify, genesis, build-delta, transition,\nproof-transition, verify-signature, replay, coordination-replay,\nverify-certificate, foreign, verify-proof, federation-outcome, migrate\n\nShadow replay: runtime-events and runtime-journal use TEMPLE3_SHADOW_CLI.\nSee README.md for usage."
+            "Temple3 native Rust laboratory\n\n  temple3 verify CORPUS_ROOT [--legacy]\n  temple3 <command> < input.json\n\nCommands: canonical, decode, identify, genesis, build-delta, transition,\nproof-transition, verify-signature, replay, coordination-replay,\nverify-certificate, foreign, verify-proof, federation-outcome, migrate\n\nShadow replay: runtime-events and runtime-journal use TEMPLE3_SHADOW_CLI.\nLegacy migration: migrate and verify --legacy use TEMPLE3_MIGRATION_CLI.\nSee README.md for usage."
         );
         return Ok(ExitCode::SUCCESS);
     }
     if command == "verify" {
-        let (root, legacy) = match &args[1..] {
-            [root] => (PathBuf::from(root), false),
-            [root, flag] if flag == "--legacy" => (PathBuf::from(root), true),
+        let root = match &args[1..] {
+            [root] => PathBuf::from(root),
+            [root, flag] if flag == "--legacy" => {
+                return run_research("TEMPLE3_MIGRATION_CLI", &["verify", root]);
+            }
             _ => return Err("usage: temple3 verify CORPUS_ROOT [--legacy]".into()),
         };
         type Suite = fn(&std::path::Path) -> temple3::Result<usize>;
@@ -51,11 +58,6 @@ fn run() -> Result<ExitCode, Box<dyn std::error::Error>> {
             let count = suite(&root)?;
             total += count;
             println!("{label}: {count} cases verified");
-        }
-        if legacy {
-            let count = vectors::migration_vectors(&root)?;
-            println!("Gate 5: {count} cases verified");
-            total += count;
         }
         println!("All {total} selected shared cases verified natively in Rust.");
         return Ok(ExitCode::SUCCESS);
@@ -126,32 +128,26 @@ fn run() -> Result<ExitCode, Box<dyn std::error::Error>> {
             &input["proof"]
         )?),
         "federation-outcome" => federation::outcome(&input["plan"], &input["bundles"])?,
-        "migrate" => migration::construct(
-            &input["manifest"],
-            &input["temple"],
-            &input["command"],
-            &input["args"],
-        )?,
         _ => return Err(format!("unknown command: {command}").into()),
     };
     println!("{}", canonical::canonical_json(&output)?);
     Ok(ExitCode::SUCCESS)
 }
 
-fn run_shadow(command: &str) -> Result<ExitCode, Box<dyn std::error::Error>> {
+fn run_research(variable: &str, args: &[&str]) -> Result<ExitCode, Box<dyn std::error::Error>> {
     let executable = PathBuf::from(
-        env::var_os("TEMPLE3_SHADOW_CLI")
-            .ok_or("set TEMPLE3_SHADOW_CLI to the absolute path of the research CLI")?,
+        env::var_os(variable)
+            .ok_or_else(|| format!("set {variable} to the absolute path of the research CLI"))?,
     );
     if !executable.is_absolute() {
-        return Err("TEMPLE3_SHADOW_CLI must be an absolute executable path".into());
+        return Err(format!("{variable} must be an absolute executable path").into());
     }
     let executable = executable.canonicalize()?;
     if executable == env::current_exe()?.canonicalize()? {
-        return Err("TEMPLE3_SHADOW_CLI must point to the separate research CLI".into());
+        return Err(format!("{variable} must point to the separate research CLI").into());
     }
-    // The research command owns stdin parsing, replay and its output streams.
-    let status = Command::new(executable).arg(command).status()?;
+    // The research command owns its input parsing and output streams.
+    let status = Command::new(executable).args(args).status()?;
     Ok(status.code().and_then(|code| u8::try_from(code).ok())
         .map_or(ExitCode::FAILURE, ExitCode::from))
 }

@@ -7,7 +7,6 @@ pub mod federation;
 pub mod identity;
 pub mod journal;
 pub mod kernel;
-pub mod migration;
 pub mod pilot;
 pub mod predicate;
 pub mod replica;
