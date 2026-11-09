@@ -1,11 +1,10 @@
-//! Explicit replacement profile; does not change the legacy assertion adapter.
-use crate::{
-    Result, array, canonical, commitment, err, identity,
+//! Test-only replacement covenant for the durable journal suite.
+use temple3::{
+    Error, Result, commitment, identity,
     journal::FileJournal,
     kernel,
     predicate::{eq, literal, read},
     replica::Replica,
-    require,
 };
 use serde_json::{Value, json};
 pub const SEED: [u8; 32] = [7; 32]; // PUBLIC local pilot fixture, never an operational key.
@@ -54,9 +53,6 @@ pub fn policy() -> Value {
         );
     }
     json!({"op":"all","values":checks})
-}
-pub fn genesis() -> Result<Value> {
-    genesis_with_seed(&SEED)
 }
 pub fn genesis_with_seed(seed: &[u8; 32]) -> Result<Value> {
     let public = hex::encode(
@@ -119,13 +115,13 @@ pub fn propose(state: &Value, input: &Value) -> Result<Value> {
     propose_with_seed(state, input, &SEED)
 }
 pub fn propose_with_seed(state: &Value, input: &Value, seed: &[u8; 32]) -> Result<Value> {
-    crate::shape(input, "value basisStateRoot requestId")?;
-    let value = crate::string(&input["value"], "pilot-value-denied")?;
+    shape(input, "value basisStateRoot requestId")?;
+    let value = string(&input["value"], "pilot-value-denied")?;
     require(["green", "amber"].contains(&value), "pilot-value-denied")?;
     identity::token(&input["requestId"])?;
     let old = current_cell(state)?;
     require(old["value"]["value"] != value, "pilot-no-op")?;
-    let parent = crate::string(&state["temple"]["stateRoot"], "invalid-state")?;
+    let parent = string(&state["temple"]["stateRoot"], "invalid-state")?;
     let cell = commitment::cell_for(&body(value, parent))?;
     let mut delta = kernel::build_delta(
         &state["temple"],
@@ -149,15 +145,6 @@ pub fn preview(state: &Value, p: &Value) -> Result<Value> {
         json!({"status":if r.accepted{"ready"}else{"rejected"},"reason":r.witness.get("reason"),"proposal":p,"proposalId":identity::signed_id(p)?,"witness":r.witness}),
     )
 }
-pub fn view(replica: &Replica) -> Result<Value> {
-    let state = replica.state(None)?;
-    let current = current_cell(&state)?;
-    let history:Vec<_>=array(&state["certificates"],"invalid-state")?.iter().map(|c|json!({"sequence":c["decision"]["height"],"value":c["proposal"]["payload"]["delta"]["create"][0]["value"]["value"],"requestId":c["proposal"]["payload"]["requestId"],"proposalId":c["decision"]["proposalId"],"finalityId":c["finalityId"],"stateRoot":c["decision"]["finalStateRoot"]})).collect();
-    let pending:Vec<_>=array(&state["votes"],"invalid-state")?.iter().filter(|v|v["vote"]["payload"]["parentFinalityId"]==state["finalityId"]).map(|v|json!({"proposalId":v["vote"]["payload"]["proposalId"],"value":v["proposal"]["payload"]["delta"]["create"][0]["value"]["value"]})).collect();
-    Ok(
-        json!({"templeId":state["temple"]["templeId"],"stateRoot":state["temple"]["stateRoot"],"sequence":state["temple"]["sequence"],"value":current["value"]["value"],"tip":state["tip"],"halted":state["halted"],"pending":pending,"history":history,"cellCount":array(&state["temple"]["state"]["cells"],"invalid-state")?.len().to_string(),"profile":CONTEXT}),
-    )
-}
 pub fn commit(replica: &Replica, p: &Value) -> Result<Value> {
     let state = replica.state(None)?;
     let pid = identity::signed_id(p)?;
@@ -165,7 +152,7 @@ pub fn commit(replica: &Replica, p: &Value) -> Result<Value> {
         .iter()
         .any(|r| r["proposalId"] == pid)
     {
-        return Ok(json!({"status":"replay","state":view(replica)?}));
+        return Ok(json!({"status":"replay"}));
     }
     require(
         array(&state["certificates"], "invalid-state")?.len() < 64,
@@ -176,11 +163,27 @@ pub fn commit(replica: &Replica, p: &Value) -> Result<Value> {
         return Ok(preview);
     }
     replica.cast_vote(p)?;
-    let result = replica.resolve()?;
-    Ok(
-        json!({"status":result["status"],"certificate":result.get("certificate"),"state":view(replica)?}),
-    )
+    replica.resolve()
 }
-pub fn proposal_id(p: &Value) -> Result<String> {
-    canonical::identify("signed", p)
+fn err(code: &str) -> Error {
+    Error { code: code.into() }
+}
+
+fn require(ok: bool, code: &str) -> Result<()> {
+    if ok { Ok(()) } else { Err(err(code)) }
+}
+
+fn array<'a>(value: &'a Value, code: &str) -> Result<&'a [Value]> {
+    value.as_array().map(Vec::as_slice).ok_or_else(|| err(code))
+}
+
+fn string<'a>(value: &'a Value, code: &str) -> Result<&'a str> {
+    value.as_str().ok_or_else(|| err(code))
+}
+
+fn shape(value: &Value, fields: &str) -> Result<()> {
+    let fields: Vec<_> = fields.split_whitespace().collect();
+    require(value.as_object().is_some_and(|object|
+        object.len() == fields.len() && fields.iter().all(|key| object.contains_key(*key))),
+        "invalid-envelope")
 }

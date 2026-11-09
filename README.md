@@ -31,11 +31,6 @@ cargo run --locked --release -- verify "$CORPUS_ROOT"
 TEMPLE3_CORPUS_ROOT="$CORPUS_ROOT" cargo test --locked --release -- --ignored
 ```
 
-The legacy migration verifier requires the Gate 5 archaeology files.
-See [Legacy migration](#legacy-migration) for the research CLI setup. Authority recognizers compare canonical
-fingerprints of their expected witness fields. The underlying workspace
-receipts stay with the external integration.
-
 ## Use as a library
 
 Add a Git dependency pinned to the commit you intend to use.
@@ -51,9 +46,6 @@ temple3 = { git = "https://github.com/aaron-alderman/temple3.git", rev = "<commi
 - `coordination` and `federation` verify quorum and foreign-chain evidence.
 
 A caller supplies the signing seed and the independently trusted Temple ID.
-The Workgarden journal adapter uses this library at its application boundary.
-Encounter core is a separate host with its own application declaration and
-image contracts.
 
 ### Application proof relations
 
@@ -71,37 +63,3 @@ require an explicit adapter. The same resolver can be supplied for compact
 transitions, coordination candidates, certificates, and journal replay.
 `Replica::create_with_relations` and `Replica::open_with_relations` keep
 the resolver fixed for the lifetime of a replica, including cached replay.
-
-### Shadow replay
-
-The Sourcery shadow CLI lives in the Temple3 research workspace. Build its
-`implementations/rust` crate with `cargo build --locked --release --bin temple3`.
-Use the absolute path to that trusted research executable:
-
-```sh
-export TEMPLE3_SHADOW_CLI=/absolute/path/to/research/temple3/implementations/rust/target/release/temple3
-temple3 runtime-events < events.json
-temple3 runtime-journal < journal.json
-```
-
-These aliases forward stdin, stdout, stderr and the exit status. The
-research CLI can also run the same commands directly.
-
-### Legacy migration
-
-The legacy property-assertion migration and its Gate 5 verifier live in the
-Temple3 research workspace. Build its `implementations/rust` crate with
-`cargo build --locked --release --bin temple3`, then configure the standalone
-CLI with the absolute path to that trusted executable.
-
-```sh
-export TEMPLE3_MIGRATION_CLI=/absolute/path/to/research/temple3/implementations/rust/target/release/temple3
-temple3 migrate < migration-input.json
-temple3 verify "$CORPUS_ROOT" --legacy
-```
-
-The second command delegates Gates 1–5 to the research CLI. Supply the
-four shared vector files and the two archaeology inputs
-`archaeology/legacy-observations.json` and `archaeology/migration-report.json`
-under the corpus root. Plain `temple3 verify "$CORPUS_ROOT"` runs Gates 1–4
-in the standalone CLI.

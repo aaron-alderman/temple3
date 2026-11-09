@@ -7,7 +7,10 @@ use std::{
         atomic::{AtomicU64, Ordering},
     },
 };
-use temple3::{commitment, identity, journal::FileJournal, kernel, pilot};
+use temple3::{commitment, identity, journal::FileJournal, kernel};
+#[path = "support/pilot.rs"]
+mod pilot;
+
 static IDS: AtomicU64 = AtomicU64::new(0);
 fn directory() -> PathBuf {
     let p = std::env::temp_dir()
