@@ -76,15 +76,7 @@ pub(crate) fn decimal(v: &Value) -> Result<num_bigint::BigUint> {
     )?;
     num_bigint::BigUint::parse_bytes(s.as_bytes(), 10).ok_or_else(|| err("invalid-sequence"))
 }
-pub mod application_contract_closure;
-pub mod application_contract_completion_audit_v02;
-pub mod foundation_obligation_ledger;
-pub mod foundation_obligation_ledger_v02;
-pub mod governed_migration_preflight;
 pub mod relnav_authentic_corpus_capacity;
-pub mod representative_authority_closure;
-pub mod representative_authority_closure_v03;
 pub mod runtime_capture_v3_authority_bundle_v01;
 pub mod runtime_export_capacity;
 pub mod sealed_runtime_events;
-pub mod selected_formation_surface;
