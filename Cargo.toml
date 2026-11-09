@@ -1,0 +1,21 @@
+[package]
+name = "temple3"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+publish = false
+default-run = "temple3"
+description = "Native Rust reference implementation of the Temple3 laboratory protocol"
+repository = "https://github.com/aaron-alderman/temple3"
+
+[dependencies]
+serde_json = "1.0"
+sha2 = "0.10"
+unicode-normalization = "0.1"
+ed25519-dalek = "2.2"
+hex = "0.4"
+num-bigint = "0.4"
+
+[[bin]]
+name = "temple3"
+path = "src/main.rs"
