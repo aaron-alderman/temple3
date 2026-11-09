@@ -249,6 +249,19 @@ pub struct Transition {
 pub fn evaluate_transition(temple: &Value, proposal: &Value) -> Result<Transition> {
     evaluate_scoped(temple, proposal, None, &mut Scope::default())
 }
+/// Use application-provided relations when evaluating a full-state transition.
+pub fn evaluate_transition_with_relations(
+    temple: &Value,
+    proposal: &Value,
+    relations: crate::federation::RelationVerifier,
+) -> Result<Transition> {
+    evaluate_scoped(
+        temple,
+        proposal,
+        None,
+        &mut Scope { relations: Some(relations), ..Scope::default() },
+    )
+}
 pub fn evaluate_proof_transition(
     head: &Value,
     proposal: &Value,

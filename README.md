@@ -54,3 +54,13 @@ A caller supplies the signing seed and the independently trusted Temple ID.
 The Workgarden journal adapter uses this library at its application boundary.
 Encounter core is a separate host with its own application declaration and
 image contracts.
+
+### Application proof relations
+
+An adapter can pass a trusted `federation::RelationVerifier` to
+`kernel::evaluate_transition_with_relations` and
+`identity::replay_with_relations`. The verifier receives the relation name,
+public inputs and evidence after Temple3 checks the statement and envelope.
+It returns `None` for unrecognized relations. Use the same deterministic,
+bounded implementation for admission and replay. Temple3 retains its built-in
+verification rules and proof budget.

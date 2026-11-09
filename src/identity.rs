@@ -248,6 +248,23 @@ pub fn verify_genesis(genesis: &Value, expected: &Value) -> Result<(Value, Value
     Ok((temple, profile.clone()))
 }
 pub fn replay(records: &Value, anchor: &Value) -> Result<Value> {
+    replay_with(records, anchor, None)
+}
+
+/// Replay with the same trusted relation implementation used for admission.
+pub fn replay_with_relations(
+    records: &Value,
+    anchor: &Value,
+    relations: crate::federation::RelationVerifier,
+) -> Result<Value> {
+    replay_with(records, anchor, Some(relations))
+}
+
+fn replay_with(
+    records: &Value,
+    anchor: &Value,
+    relations: Option<crate::federation::RelationVerifier>,
+) -> Result<Value> {
     let expected = &anchor["expectedTempleId"];
     require(
         expected.as_str().is_some_and(|s| !s.is_empty()),
@@ -274,9 +291,11 @@ pub fn replay(records: &Value, anchor: &Value) -> Result<Value> {
                 require(e["proposal"]["purpose"] == "proposal", "invalid-purpose")?;
                 observe(&e["proposal"], &mut observations)?;
                 let p = &e["proposal"]["payload"];
-                let result = kernel::evaluate_transition(
+                let result = kernel::evaluate_scoped(
                     &temple,
                     &json!({"identity":p["actor"],"delta":p["delta"],"context":p["context"]}),
+                    None,
+                    &mut crate::predicate::Scope { relations, ..Default::default() },
                 )?;
                 let payload = json!({"templeId":expected,"proposalId":signed_id(&e["proposal"])?,"previousReceiptId":receipt,"witness":result.witness});
                 require(

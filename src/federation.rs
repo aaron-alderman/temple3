@@ -163,8 +163,24 @@ fn ready(inputs: &Value, bundle: &Value, scope: &mut Scope) -> Result<bool> {
     check_base(&state, peer, scope)?;
     is_preparation(&state, bundle, plan, peer)
 }
+/// Trusted application dispatch over a checked proof envelope.
+/// Return None for an unknown relation. Implementations must be deterministic
+/// and bounded. Built-in relations always take precedence.
+pub type RelationVerifier = fn(&str, &Value, &Value) -> Option<Result<bool>>;
+
 pub fn verify_proof(stmt: &Value, proof: &Value) -> Result<bool> {
     verify_scoped(stmt, proof, &mut Scope::default())
+}
+pub fn verify_proof_with_relations(
+    stmt: &Value,
+    proof: &Value,
+    relations: RelationVerifier,
+) -> Result<bool> {
+    verify_scoped(
+        stmt,
+        proof,
+        &mut Scope { relations: Some(relations), ..Scope::default() },
+    )
 }
 pub(crate) fn verify_scoped(stmt: &Value, proof: &Value, scope: &mut Scope) -> Result<bool> {
     // Exhaustion must escape every nested verifier, including under `not`.
@@ -190,6 +206,7 @@ pub(crate) fn verify_scoped(stmt: &Value, proof: &Value, scope: &mut Scope) -> R
         let mut child = Scope {
             depth: scope.depth + 1,
             remaining: 8,
+            relations: scope.relations,
         };
         let i = &stmt["publicInputs"];
         let e = &proof["evidence"];
@@ -225,7 +242,6 @@ pub(crate) fn verify_scoped(stmt: &Value, proof: &Value, scope: &mut Scope) -> R
             Some("authorized-testimony-command-v1") => {
                 Ok(crate::authorized_testimony::command_valid(i, e))
             }
-            Some("workgarden-command-v1") => crate::workgarden::verify(i, e),
             Some("foreign-finality") => {
                 shape(i, "templeId finalityId stateRoot witnessId")?;
                 let result = foreign_scoped(e, &i["templeId"], &mut child)?;
@@ -276,7 +292,10 @@ pub(crate) fn verify_scoped(stmt: &Value, proof: &Value, scope: &mut Scope) -> R
                 }
                 Ok(true)
             }
-            _ => Ok(false),
+            Some(relation) => scope.relations
+                .and_then(|verify| verify(relation, i, e))
+                .unwrap_or(Ok(false)),
+            None => Ok(false),
         }
     })();
     match checked {

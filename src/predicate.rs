@@ -1,4 +1,4 @@
-use crate::{Result, array, canonical::canonical_json, err, require};
+use crate::{Result, array, canonical::canonical_json, err, federation::RelationVerifier, require};
 use serde_json::{Value, json};
 
 /// Internal deterministic proof budget. Public entry points always start fresh.
@@ -6,12 +6,14 @@ use serde_json::{Value, json};
 pub(crate) struct Scope {
     pub depth: usize,
     pub remaining: usize,
+    pub relations: Option<RelationVerifier>,
 }
 impl Default for Scope {
     fn default() -> Self {
         Self {
             depth: 0,
             remaining: 8,
+            relations: None,
         }
     }
 }

@@ -39,7 +39,6 @@ pub mod vectors;
 pub mod voluntary_expression;
 pub mod voluntary_expression_capacity;
 pub mod voluntary_expression_profile;
-pub mod workgarden;
 
 use serde_json::Value;
 
