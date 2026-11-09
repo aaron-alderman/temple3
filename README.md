@@ -71,3 +71,18 @@ require an explicit adapter. The same resolver can be supplied for compact
 transitions, coordination candidates, certificates, and journal replay.
 `Replica::create_with_relations` and `Replica::open_with_relations` keep
 the resolver fixed for the lifetime of a replica, including cached replay.
+
+### Shadow replay
+
+The Sourcery shadow CLI lives in the Temple3 research workspace. Build its
+`implementations/rust` crate with `cargo build --locked --release --bin temple3`.
+Use the absolute path to that trusted research executable:
+
+```sh
+export TEMPLE3_SHADOW_CLI=/absolute/path/to/research/temple3/implementations/rust/target/release/temple3
+temple3 runtime-events < events.json
+temple3 runtime-journal < journal.json
+```
+
+These aliases forward stdin, stdout, stderr and the exit status. The
+research CLI can also run the same commands directly.

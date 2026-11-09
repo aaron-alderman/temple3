@@ -11,8 +11,6 @@ pub mod migration;
 pub mod pilot;
 pub mod predicate;
 pub mod replica;
-pub mod runtime_events;
-pub mod source_json;
 pub mod vectors;
 
 use serde_json::Value;
@@ -76,4 +74,3 @@ pub(crate) fn decimal(v: &Value) -> Result<num_bigint::BigUint> {
     )?;
     num_bigint::BigUint::parse_bytes(s.as_bytes(), 10).ok_or_else(|| err("invalid-sequence"))
 }
-pub mod sealed_runtime_events;
