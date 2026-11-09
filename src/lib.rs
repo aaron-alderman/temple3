@@ -2,14 +2,12 @@
 //! admission; signatures alone never authorize a transition.
 pub mod basis_consequence;
 pub mod basis_decision;
-pub mod basis_decision_profile;
 pub mod canonical;
 pub mod commitment;
 pub mod coordination;
 pub mod federation;
 pub mod identity;
 pub mod inventory;
-pub mod inventory_profile;
 pub mod journal;
 pub mod kernel;
 pub mod migration;
@@ -21,7 +19,6 @@ pub mod source_json;
 pub mod typed_composition;
 pub mod vectors;
 pub mod voluntary_expression;
-pub mod voluntary_expression_capacity;
 
 use serde_json::Value;
 
@@ -84,25 +81,17 @@ pub(crate) fn decimal(v: &Value) -> Result<num_bigint::BigUint> {
     )?;
     num_bigint::BigUint::parse_bytes(s.as_bytes(), 10).ok_or_else(|| err("invalid-sequence"))
 }
-pub mod actor_authority_target;
 pub mod actor_source_inventory;
 pub mod application_contract_closure;
 pub mod application_contract_completion_audit_v02;
-pub mod claim_approval_source_target;
-pub mod claim_import_application;
-pub mod claim_import_application_profile;
 pub mod claim_import_replay;
 pub mod claim_import_review;
 pub mod claim_import_target;
 pub mod claim_lifecycle;
-pub mod claim_lifecycle_compact_profile;
-pub mod claim_lifecycle_host_policy;
 pub mod claim_lifecycle_local;
 pub mod claim_mapping_selection;
 pub mod claim_readiness;
-pub mod claim_readiness_local;
 pub mod claim_reconciliation;
-pub mod claim_retained_mapping;
 pub mod claim_source_inventory;
 pub mod exact_money;
 pub mod foundation_obligation_ledger;
@@ -119,7 +108,6 @@ pub mod relnav_operational_authority_v02;
 pub mod relnav_operational_authority_v03;
 pub mod relnav_operational_authority_v04;
 pub mod relnav_operational_authority_v05;
-pub mod relnav_runtime_authority_boundary_v07;
 pub mod relnav_runtime_authority_refusal_v06;
 pub mod relnav_source_inventory;
 pub mod relnav_source_target;
@@ -127,15 +115,11 @@ pub mod relnav_source_target_v02;
 pub mod relnav_source_target_v03;
 pub mod relnav_source_target_v04;
 pub mod relnav_source_target_v05;
-pub mod relnav_source_target_v06;
 pub mod representative_authority_closure;
 pub mod representative_authority_closure_v03;
 pub mod representative_authority_closure_v04;
 pub mod representative_authority_closure_v05;
 pub mod representative_authority_closure_v06;
-pub mod representative_authority_closure_v07;
-pub mod representative_composition_profile;
-pub mod representative_formation_closure_v02;
 pub mod runtime_capture_v3_authority_bundle_v01;
 pub mod runtime_export_capacity;
 pub mod sealed_runtime_events;
