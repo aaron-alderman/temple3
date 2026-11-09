@@ -1,13 +1,11 @@
 //! Temple3 laboratory protocol. All state advancement recomputes constitutional
 //! admission; signatures alone never authorize a transition.
-pub mod basis_consequence;
 pub mod basis_decision;
 pub mod canonical;
 pub mod commitment;
 pub mod coordination;
 pub mod federation;
 pub mod identity;
-pub mod inventory;
 pub mod journal;
 pub mod kernel;
 pub mod migration;
@@ -16,7 +14,6 @@ pub mod predicate;
 pub mod replica;
 pub mod runtime_events;
 pub mod source_json;
-pub mod typed_composition;
 pub mod vectors;
 pub mod voluntary_expression;
 
@@ -84,13 +81,9 @@ pub(crate) fn decimal(v: &Value) -> Result<num_bigint::BigUint> {
 pub mod actor_source_inventory;
 pub mod application_contract_closure;
 pub mod application_contract_completion_audit_v02;
-pub mod claim_import_replay;
 pub mod claim_import_review;
 pub mod claim_import_target;
 pub mod claim_lifecycle;
-pub mod claim_lifecycle_local;
-pub mod claim_mapping_selection;
-pub mod claim_readiness;
 pub mod claim_reconciliation;
 pub mod claim_source_inventory;
 pub mod exact_money;
@@ -99,7 +92,6 @@ pub mod foundation_obligation_ledger_v02;
 pub mod governed_migration_preflight;
 pub mod inventory_operational_authority_v02;
 pub mod inventory_source_inventory;
-pub mod inventory_source_target;
 pub mod relnav_authentic_corpus_capacity;
 pub mod relnav_context_route_declarations;
 pub mod relnav_context_runtime_structure;
@@ -107,23 +99,14 @@ pub mod relnav_governed_authority_refusal_v08;
 pub mod relnav_operational_authority_v02;
 pub mod relnav_operational_authority_v03;
 pub mod relnav_operational_authority_v04;
-pub mod relnav_operational_authority_v05;
-pub mod relnav_runtime_authority_refusal_v06;
 pub mod relnav_source_inventory;
 pub mod relnav_source_target;
 pub mod relnav_source_target_v02;
 pub mod relnav_source_target_v03;
-pub mod relnav_source_target_v04;
-pub mod relnav_source_target_v05;
 pub mod representative_authority_closure;
 pub mod representative_authority_closure_v03;
 pub mod representative_authority_closure_v04;
-pub mod representative_authority_closure_v05;
-pub mod representative_authority_closure_v06;
 pub mod runtime_capture_v3_authority_bundle_v01;
 pub mod runtime_export_capacity;
 pub mod sealed_runtime_events;
 pub mod selected_formation_surface;
-
-pub mod source_capsule_custody;
-pub mod source_observation_capsule;
